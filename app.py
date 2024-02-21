@@ -527,5 +527,3 @@ def mainFun():
 @app.route("/")
 def test():
   return "Sadman Sakib"
-
-app.run(host="0.0.0.0", port=81)
