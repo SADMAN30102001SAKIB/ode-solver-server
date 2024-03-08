@@ -1,328 +1,529 @@
-import datetime as dt
-
-import pandas as pd
-import requests
 from flask import Flask, request
 from flask_cors import CORS
-from sklearn.ensemble import HistGradientBoostingClassifier
-from sklearn.linear_model import LinearRegression
-from sklearn.metrics import mean_squared_error
-from sklearn.model_selection import train_test_split
+import sympy as sp
+import re
+import sys
 
 app = Flask(__name__)
 CORS(app)
 
-sun_shine_hour = [
-    [7.5, 8, 8.25, 8, 7.5, 4.7, 4.4, 4.5, 5.2, 7, 7.6, 7.9],
-    [6.6, 7.8, 7.8, 8, 7.2, 5.4, 4.2, 5.2, 5.7, 6.4, 7.3, 7.4],
-    [8.2, 8.6, 8.7, 8.6, 7.6, 4.9, 4.5, 4.9, 5.8, 7.4, 8, 8.1],
-    [6.7, 7.5, 7.7, 7.9, 6.7, 5.8, 5.2, 5.5, 5.5, 6.6, 7.4, 7.3],
-    [6.8, 7.5, 8, 8.2, 7.8, 4.8, 4.7, 5.1, 4.8, 6.5, 7.5, 6.7],
-    [6.1, 7.5, 8, 7, 6.8, 4.8, 5, 5.3, 5.3, 6.7, 7.6, 6],
-    [7.1, 7.9, 8, 7.8, 7.3, 5.6, 4.5, 5.4, 5.5, 7.4, 7.7, 7.1],
-    [6.3, 7.7, 7.4, 7.5, 7.3, 4.7, 3.9, 4.2, 4.4, 6.8, 7.1, 6.3],
-    [6.1, 7.2, 7.9, 6.9, 6.7, 4.2, 4.4, 4.1, 4.2, 7.2, 7.7, 6.7],
-    [6.8, 8.2, 8.3, 8.2, 7.9, 6.8, 4.4, 5.2, 6.4, 7.4, 7.8, 7.7],
-    [7.8, 8.2, 8.1, 8, 6.2, 4.5, 3.8, 5.7, 5.9, 6.3, 7.9, 8],
-    [7.7, 7.8, 8, 7.4, 6.5, 4.5, 3.8, 4.8, 5, 7.1, 8.1, 8],
-    [6.4, 7.8, 7.9, 7.8, 7.1, 5.5, 4.8, 5.6, 5, 7.1, 8.2, 6.8],
-    [7, 8.1, 8.3, 8.8, 8.1, 5.5, 4.3, 4.7, 5, 6.8, 7.7, 7.9],
-]
+class ODE:
+  def __init__(self, odeEquation, conditionList):
+    self.a = sp.symbols("a")
+    self.b = sp.symbols("b")
+    self.c = sp.symbols("c")
+    self.d = sp.symbols("d")
+    self.e = sp.symbols("e")
+    self.f = sp.symbols("f")
+    self.g = sp.symbols("g")
+    self.h = sp.symbols("h")
+    self.i = sp.symbols("i")
+    self.j = sp.symbols("j")
+    self.k = sp.symbols("k")
+    self.l = sp.symbols("l")
+    self.m = sp.symbols("m")
+    self.n = sp.symbols("n")
+    self.o = sp.symbols("o")
+    self.p = sp.symbols("p")
+    self.q = sp.symbols("q")
+    self.r = sp.symbols("r")
+    self.s = sp.symbols("s")
+    self.t = sp.symbols("t")
+    self.u = sp.symbols("u")
+    self.v = sp.symbols("v")
+    self.w = sp.symbols("w")
+    self.x = sp.symbols("x")
+    self.z = sp.symbols("z")
+    self.y = sp.Function("y")(self.x)
+    self.order = 0
+    self.isHomogenous = True
+    self.odeEquation = odeEquation
+    self.odeEquation = self.getEquation()
+    self.conditionList = conditionList
+    self.errorString = ""
+    self.isEquation = 1
+    self.odeSolution = 0
+    self.conditions = {}
+    if type(self.odeEquation) == str:
+      self.errorString = self.odeEquation
+      self.isEquation = 0
 
+  def getConditionList(self):
+    return self.conditionList
 
-def bengali_converter(pre):
-    pre_int = int(pre) - 1
-    pre_float = pre - pre_int
-    bangla_list = [
-        ["Poush", "Magh"],
-        ["Magh", "Falgun"],
-        ["Falgun", "chaitra"],
-        ["chaitro", "Boisakh"],
-        ["Boisakh", "Joistho"],
-        ["Joistho", "Ashar"],
-        ["Ashar", "shraban"],
-        ["shraban", "bhadro"],
-        ["bhadro", "ashwin"],
-        ["ashwin", "kartik"],
-        ["kartik", "agrahayan"],
-        ["agrahayan", "Poush"],
-    ]
-    bangla_month_list = bangla_list[pre_int]
-    if pre_float > 0.5:
-        bangla_month = bangla_month_list[1]
-        if pre_float > 0.75:
-            bangla_week = 2
+  def isEquationFormed(self):
+    return self.isEquation
+
+  def getError(self):
+    return self.errorString
+
+  def isTermEnd(self, odeEquationTerm, i):
+    if odeEquationTerm[i - 1] == "D" or odeEquationTerm[i - 1] == "y":
+      return True
+    for j in range(2, i):
+      if odeEquationTerm[i -
+                         j] == "^" and (odeEquationTerm[i - j - 1] == "D"
+                                        or odeEquationTerm[i - j - 1] == "y"):
+        return True
+      if odeEquationTerm[i - j] == "+" or odeEquationTerm[i - j] == "-":
+        return False
+    return False
+
+  def extractYfromD(self, dCoEfficient):
+    self.isHomogenous = False
+    if "*y^" in dCoEfficient:
+      parts = dCoEfficient.split("*y^")
+      YCoEfficient = parts[0]
+      power = parts[1]
+      return YCoEfficient, power
+    elif "y^" in dCoEfficient:
+      parts = dCoEfficient.split("y^")
+      YCoEfficient = parts[0]
+      if YCoEfficient == "-" or YCoEfficient == "+" or YCoEfficient == "":
+        YCoEfficient += "1"
+      power = parts[1]
+      return YCoEfficient, power
+    elif "*y" in dCoEfficient:
+      parts = dCoEfficient.split("*y")
+      YCoEfficient = parts[0]
+      power = 1
+      return YCoEfficient, power
+    elif "y" in dCoEfficient:
+      parts = dCoEfficient.split("y")
+      YCoEfficient = parts[0]
+      if YCoEfficient == "-" or YCoEfficient == "+" or YCoEfficient == "":
+        YCoEfficient += "1"
+      power = 1
+      return YCoEfficient, power
+
+  def extractTerms(self, odeEquationTerm):
+    if odeEquationTerm == "0" or odeEquationTerm == "+0" or odeEquationTerm == "-0":
+      return [0], [0], [], ["0"], ["0"]
+    powerListOfD = []
+    powerListOfYInD = []
+    powerListOfY = []
+    coEfficientListOfD = []
+    coEfficientListOfY = []
+    term = ""
+    YCoEfficient = ""
+    dCoEfficient = ""
+    yPower = 0
+    isBracketsFullClosed = 0
+    for i in range(0, len(odeEquationTerm)):
+      char = odeEquationTerm[i]
+      if char == "(":
+        isBracketsFullClosed += 1
+      if char == ")":
+        isBracketsFullClosed -= 1
+      if (i and char in ("+", "-") and odeEquationTerm[i - 1] != "^" and
+          (self.isTermEnd(odeEquationTerm, i) or isBracketsFullClosed == 0)):
+        if "D" not in term and "y" not in term:
+          dCoEfficient = term
+          power = -sys.maxsize
+          yPower = 0
+          powerListOfYInD.append(float(yPower))
+          powerListOfD.append(int(power))
+        elif term:
+          if "*D^" in term:
+            parts = term.split("*D^")
+            dCoEfficient = parts[0]
+            if "y" in dCoEfficient:
+              dCoEfficient, yPower = self.extractYfromD(dCoEfficient)
+            else:
+              yPower = 0
+            powerListOfYInD.append(float(yPower))
+            power = parts[1]
+            powerListOfD.append(int(power))
+          elif "D^" in term:
+            parts = term.split("D^")
+            dCoEfficient = parts[0]
+            if (dCoEfficient == "-" or dCoEfficient == "+"
+                or dCoEfficient == ""):
+              dCoEfficient += "1"
+            if "y" in dCoEfficient:
+              dCoEfficient, yPower = self.extractYfromD(dCoEfficient)
+            else:
+              yPower = 0
+            powerListOfYInD.append(float(yPower))
+            power = parts[1]
+            powerListOfD.append(int(power))
+          elif "*D" in term:
+            parts = term.split("*D")
+            dCoEfficient = parts[0]
+            if "y" in dCoEfficient:
+              dCoEfficient, yPower = self.extractYfromD(dCoEfficient)
+            else:
+              yPower = 0
+            powerListOfYInD.append(float(yPower))
+            power = 1
+            powerListOfD.append(int(power))
+          elif "D" in term:
+            parts = term.split("D")
+            dCoEfficient = parts[0]
+            if (dCoEfficient == "-" or dCoEfficient == "+"
+                or dCoEfficient == ""):
+              dCoEfficient += "1"
+            if "y" in dCoEfficient:
+              dCoEfficient, yPower = self.extractYfromD(dCoEfficient)
+            else:
+              yPower = 0
+            powerListOfYInD.append(float(yPower))
+            power = 1
+            powerListOfD.append(int(power))
+          elif "*y^" in term:
+            parts = term.split("*y^")
+            YCoEfficient = parts[0]
+            power = parts[1]
+            powerListOfY.append(float(power))
+          elif "y^" in term:
+            parts = term.split("y^")
+            YCoEfficient = parts[0]
+            if (YCoEfficient == "-" or YCoEfficient == "+"
+                or YCoEfficient == ""):
+              YCoEfficient += "1"
+            power = parts[1]
+            powerListOfY.append(float(power))
+          elif "*y" in term:
+            parts = term.split("*y")
+            YCoEfficient = parts[0]
+            power = 1
+            powerListOfY.append(power)
+          elif "y" in term:
+            parts = term.split("y")
+            YCoEfficient = parts[0]
+            if (YCoEfficient == "-" or YCoEfficient == "+"
+                or YCoEfficient == ""):
+              YCoEfficient += "1"
+            power = 1
+            powerListOfY.append(power)
+        if dCoEfficient:
+          coEfficientListOfD.append(dCoEfficient)
+        if YCoEfficient:
+          coEfficientListOfY.append(YCoEfficient)
+        term = char
+        YCoEfficient = ""
+        dCoEfficient = ""
+      else:
+        term += char
+    if "D" not in term and "y" not in term:
+      dCoEfficient = term
+      power = -sys.maxsize
+      yPower = 0
+      powerListOfYInD.append(float(yPower))
+      powerListOfD.append(int(power))
+    elif term:
+      if "*D^" in term:
+        parts = term.split("*D^")
+        dCoEfficient = parts[0]
+        if "y" in dCoEfficient:
+          dCoEfficient, yPower = self.extractYfromD(dCoEfficient)
         else:
-            bangla_week = 1
-    else:
-        bangla_month = bangla_month_list[0]
-        if pre_float > 0.25:
-            bangla_week = 2
+          yPower = 0
+        powerListOfYInD.append(float(yPower))
+        power = parts[1]
+        powerListOfD.append(int(power))
+      elif "D^" in term:
+        parts = term.split("D^")
+        dCoEfficient = parts[0]
+        if dCoEfficient == "-" or dCoEfficient == "+" or dCoEfficient == "":
+          dCoEfficient += "1"
+        if "y" in dCoEfficient:
+          dCoEfficient, yPower = self.extractYfromD(dCoEfficient)
         else:
-            bangla_week = 1
-    return bangla_month, bangla_week
-
-
-def get_month_and_week(number):
-    number_int = int(number) - 1
-    number_float = number - number_int
-    if number_float > 0.5:
-        if number_float > 0.75:
-            week = 4
+          yPower = 0
+        powerListOfYInD.append(float(yPower))
+        power = parts[1]
+        powerListOfD.append(int(power))
+      elif "*D" in term:
+        parts = term.split("*D")
+        dCoEfficient = parts[0]
+        if "y" in dCoEfficient:
+          dCoEfficient, yPower = self.extractYfromD(dCoEfficient)
         else:
-            week = 3
-    else:
-        if number_float > 0.25:
-            week = 2
+          yPower = 0
+        powerListOfYInD.append(float(yPower))
+        power = 1
+        powerListOfD.append(int(power))
+      elif "D" in term:
+        parts = term.split("D")
+        dCoEfficient = parts[0]
+        if dCoEfficient == "-" or dCoEfficient == "+" or dCoEfficient == "":
+          dCoEfficient += "1"
+        if "y" in dCoEfficient:
+          dCoEfficient, yPower = self.extractYfromD(dCoEfficient)
         else:
-            week = 1
-    return number_int, week
-
-
-def model2(inputs, outputs, input_list):
-    INFO = "Agriqo(slider2).csv"
-    data = pd.read_csv(INFO)
-
-    data_without_duplicates = data.drop_duplicates()
-
-    model = LinearRegression()
-    model.fit(data_without_duplicates[inputs], data_without_duplicates[outputs])
-    predicted_values = model.predict(data_without_duplicates[inputs])
-    mse = mean_squared_error(data_without_duplicates[outputs], predicted_values)
-    pre = model.predict([input_list])
-    pre = pre[0][0]
-    bangla_month, bangla_week = bengali_converter(pre)
-    english_month, eng_week = get_month_and_week(pre)
-
-    return pre, bangla_month, bangla_week, english_month, eng_week
-
-
-def weather_api(agricultural_zone, city):
-    api_key = "544ee17b2e3eafb5c5a4ec602c2a19b4"
-    base_url = "https://api.openweathermap.org/data/2.5/forecast?q="
-
-    Cc = "BD"
-
-    url = base_url + city + "," + Cc + "&appid=" + api_key
-
-    data = requests.get(url).json()
-
-    temperatures = [item["main"]["temp"] for item in data["list"]]
-    average_temperature = sum(temperatures) / len(temperatures)
-
-    humidities = [item["main"]["humidity"] for item in data["list"]]
-    humidities.sort(reverse=True)
-    num_to_avg = min(15, len(humidities))
-    average_humidity = sum(humidities[:num_to_avg]) / (num_to_avg - 4.9)
-
-    wind_speeds = [item["wind"]["speed"] for item in data["list"]]
-    average_wind_speed = sum(wind_speeds) / len(wind_speeds)
-
-    wind_directions = [
-        item["wind"]["deg"] for item in data["list"] if "deg" in item["wind"]
-    ]
-    average_wind_direction = sum(wind_directions) / len(wind_directions)
-
-    rains = [item["rain"]["3h"] for item in data["list"] if "rain" in item]
-    if rains:
-        average_rainfall = sum(rains)
-    else:
-        average_rainfall = 0
-
-    current_date = dt.datetime.today().day
-    current_monthe = dt.datetime.today().month
-    current_month = current_monthe
-
-    if current_date >= 1 and current_date <= 7:
-        current_month += 0.0
-    elif current_date >= 8 and current_date <= 14:
-        current_month += 0.25
-    elif current_date >= 15 and current_date <= 21:
-        current_month += 0.5
-    elif current_date >= 8 and current_date <= 7:
-        current_month += 0.75
-
-    sun_light_hour = sun_shine_hour[agricultural_zone][current_monthe] * 7
-
+          yPower = 0
+        powerListOfYInD.append(float(yPower))
+        power = 1
+        powerListOfD.append(int(power))
+      elif "*y^" in term:
+        parts = term.split("*y^")
+        YCoEfficient = parts[0]
+        power = parts[1]
+        powerListOfY.append(float(power))
+      elif "y^" in term:
+        parts = term.split("y^")
+        YCoEfficient = parts[0]
+        if YCoEfficient == "-" or YCoEfficient == "+" or YCoEfficient == "":
+          YCoEfficient += "1"
+        power = parts[1]
+        powerListOfY.append(float(power))
+      elif "*y" in term:
+        parts = term.split("*y")
+        YCoEfficient = parts[0]
+        power = 1
+        powerListOfY.append(power)
+      elif "y" in term:
+        parts = term.split("y")
+        YCoEfficient = parts[0]
+        if YCoEfficient == "-" or YCoEfficient == "+" or YCoEfficient == "":
+          YCoEfficient += "1"
+        power = 1
+        powerListOfY.append(power)
+    if dCoEfficient:
+      coEfficientListOfD.append(dCoEfficient)
+    if YCoEfficient:
+      coEfficientListOfY.append(YCoEfficient)
     return (
-        current_month,
-        average_rainfall,
-        average_temperature,
-        average_humidity,
-        sun_light_hour,
-        average_wind_direction,
-        average_wind_speed,
+        powerListOfD,
+        powerListOfYInD,
+        powerListOfY,
+        coEfficientListOfD,
+        coEfficientListOfY,
     )
 
+  def convertEquation(self, odeEquationTerm):
+    odeEquationTerm = odeEquationTerm.replace("e^", "exp")
+    odeEquationTerm = odeEquationTerm.replace("root", "sqrt")
+    odeEquationTerm = odeEquationTerm.replace("d", "D")
+    odeEquationTerm = odeEquationTerm.replace("X", "x")
+    odeEquationTerm = odeEquationTerm.replace("Y", "y")
+    odeEquationTerm = odeEquationTerm.replace("(D)", "D")
+    odeEquationTerm = odeEquationTerm.replace("(y)", "y")
+    odeEquationTerm = odeEquationTerm.replace("D*", "D")
+    odeEquationTerm = odeEquationTerm.replace("y*", "y")
+    pattern = r"(D\^-?\d*)y"
+    odeEquationTerm = re.sub(pattern, r"\1", odeEquationTerm)
+    pattern = r"(D\^\+?\d*)y"
+    odeEquationTerm = re.sub(pattern, r"\1", odeEquationTerm)
+    return odeEquationTerm
 
-def model1(inputs, outputs, input_list):
-    INFO = "Agriqo(slider1).csv"
-    data = pd.read_csv(INFO)
-    X_train, X_test, Y_train, Y_test = train_test_split(
-        data[inputs], data[outputs], test_size=0.2, random_state=42
-    )
-    model = HistGradientBoostingClassifier(random_state=42)
-    model.fit(X_train, Y_train)
-    probabilites = model.predict_proba([input_list])[0]
-    top_3 = probabilites.argsort()[-3:][::-1]
-    top_3_classes = model.classes_[top_3]
-    top_3_probabilities = probabilites[top_3]
-
-    return top_3_classes, top_3_probabilities
-
-
-def ai(inputs, manual_input):
-    if not manual_input:
-        (
-            current_month,
-            average_rainfall,
-            average_temperature,
-            average_humidity,
-            sun_light_hour,
-            average_wind_direction,
-            average_wind_speed,
-        ) = weather_api(inputs[0], inputs[1])
-        input_list = [
-            inputs[0],
-            current_month,
-            average_rainfall,
-            average_temperature,
-            average_humidity,
-            sun_light_hour,
-            average_wind_direction,
-            average_wind_speed,
-        ]
-        output_class, output = model1(
-            [
-                "Agricultural zone",
-                "month(chara)",
-                "rainfall (mm)",
-                "temperature(avg)",
-                "humidity(avg)",
-                "sunlight(hour)",
-                "direction of wind(deg)",
-                "velocity of wind(km/h)",
-            ],
-            ["label"],
-            input_list,
-        )
-    elif manual_input:
-        current_date = dt.datetime.today().day
-        current_monthe = dt.datetime.today().month
-        current_month = current_monthe
-
-        if current_date >= 1 and current_date <= 7:
-            current_month += 0.0
-        elif current_date >= 8 and current_date <= 14:
-            current_month += 0.25
-        elif current_date >= 15 and current_date <= 21:
-            current_month += 0.5
-        elif current_date >= 8 and current_date <= 7:
-            current_month += 0.75
-        input_list = [
-            inputs[0],
-            current_month,
-            inputs[2],
-            inputs[3],
-            inputs[4],
-            inputs[5],
-            inputs[6],
-            inputs[7],
-        ]
-        output_class, output = model1(
-            [
-                "Agricultural zone",
-                "month(chara)",
-                "rainfall (mm)",
-                "temperature(avg)",
-                "humidity(avg)",
-                "sunlight(hour)",
-                "direction of wind(deg)",
-                "velocity of wind(km/h)",
-            ],
-            ["label"],
-            input_list,
-        )
-
-    output_str = "["
-
-    for i, j in zip(output, output_class):
-        if i > 0.3:
-            output_str += '"' + j + '",'
-
-    output_list = list(output_str)
-    output_list[len(output_str) - 1] = "]"
-    final_output = "".join(output_list)
-
-    return final_output
-
-
-@app.route("/cropRecomAI", methods=["POST"])
-def handle_data_Ai():
+  def getEquation(self):
+    errorMessages = {
+        "y/": "Don't divide the term 'y', simplify the equation even more.",
+        "y)": "Don't wrap 'y' with ().",
+        "D)": "Don't wrap 'D' with ().",
+        "(D": "Don't wrap 'D^n' with ().",
+        "D^(": "Don't wrap D's power with ().",
+        "y^(": "Don't wrap y's power with ().",
+    }
     try:
-        data = request.json
-
-        inputs = [data["zone"], data["district"]]
-        manual_input = False
-
-        return ai(inputs, manual_input)
+      self.odeEquation = self.convertEquation(self.odeEquation.replace(
+          " ", ""))
+      for condition, errorMessage in errorMessages.items():
+        if condition in self.odeEquation:
+          return errorMessage
+      LhsOde, RhsOde = self.odeEquation.split("=")
     except:
-        return "An Unexpected error occured.", 200
+      LhsOde = self.odeEquation
+      RhsOde = "0"
+    (
+        LhsPowerListOfD,
+        LhsPowerListOfyInD,
+        LhsPowerListOfY,
+        LhsCoEfficientListOfD,
+        LhsCoEfficientListOfY,
+    ) = self.extractTerms(LhsOde)
+    (
+        RhsPowerListOfD,
+        RhsPowerListOfyInD,
+        RhsPowerListOfY,
+        RhsCoEfficientListOfD,
+        RhsCoEfficientListOfY,
+    ) = self.extractTerms(RhsOde)
+    if not LhsPowerListOfD and not RhsPowerListOfD:
+      return "Order has to be greater than 0."
+    if len(LhsPowerListOfY) and max(LhsPowerListOfY) != 1:
+      self.isHomogenous = False
+    if len(RhsPowerListOfY) and max(RhsPowerListOfY) != 1:
+      self.isHomogenous = False
+    for num in LhsPowerListOfD:
+      if num < 0 and num != -sys.maxsize:
+        return "Order has to be greater than 0."
+      if num == -sys.maxsize:
+        self.isHomogenous = False
+    for num in RhsPowerListOfD:
+      if num < 0 and num != -sys.maxsize:
+        return "Order has to be greater than 0."
+      if num == -sys.maxsize:
+        self.isHomogenous = False
+    if "x" in self.odeEquation:
+      self.isHomogenous = False
+    if (len(LhsPowerListOfD) == 1 and RhsOde == "0"
+        and len(LhsCoEfficientListOfY) == 0):
+      self.isHomogenous = True
+    if len(LhsPowerListOfD) and len(RhsPowerListOfD):
+      self.order = max(max(LhsPowerListOfD), max(RhsPowerListOfD))
+    elif len(LhsPowerListOfD):
+      self.order = max(LhsPowerListOfD)
+    else:
+      self.order = max(RhsPowerListOfD)
+    if self.order == 0:
+      return "Order has to be greater than 0."
+    LhsEquation = 0
+    for i, item in enumerate(LhsPowerListOfD):
+      if item == -sys.maxsize:
+        LhsEquation += sp.sympify(LhsCoEfficientListOfD[i])
+      elif isinstance(LhsPowerListOfyInD[i],
+                      float) and LhsPowerListOfyInD[i] == int(
+                          LhsPowerListOfyInD[i]):
+        LhsEquation += (self.y.diff(self.x, item) *
+                        (self.y**int(LhsPowerListOfyInD[i])) *
+                        sp.sympify(LhsCoEfficientListOfD[i]))
+      elif isinstance(
+          LhsPowerListOfyInD[i],
+          float) and LhsPowerListOfyInD[i] != int(LhsPowerListOfyInD[i]):
+        LhsEquation += (self.y.diff(self.x, item) *
+                        (self.y**LhsPowerListOfyInD[i]) *
+                        sp.sympify(LhsCoEfficientListOfD[i]))
+    for i, item in enumerate(LhsPowerListOfY):
+      if isinstance(item, float) and item != int(item):
+        LhsEquation += (self.y**item) * sp.sympify(LhsCoEfficientListOfY[i])
+      elif isinstance(item, float) and item == int(item):
+        LhsEquation += (self.y**int(item)) * sp.sympify(
+            LhsCoEfficientListOfY[i])
+      else:
+        LhsEquation += self.y * sp.sympify(LhsCoEfficientListOfY[i])
+    RhsEquation = 0
+    for i, item in enumerate(RhsPowerListOfD):
+      if item == -sys.maxsize:
+        RhsEquation += sp.sympify(RhsCoEfficientListOfD[i])
+      elif isinstance(RhsPowerListOfyInD[i],
+                      float) and RhsPowerListOfyInD[i] == int(
+                          RhsPowerListOfyInD[i]):
+        RhsEquation += (self.y.diff(self.x, item) *
+                        (self.y**int(RhsPowerListOfyInD[i])) *
+                        sp.sympify(RhsCoEfficientListOfD[i]))
+      elif isinstance(
+          RhsPowerListOfyInD[i],
+          float) and RhsPowerListOfyInD[i] != int(RhsPowerListOfyInD[i]):
+        RhsEquation += (self.y.diff(self.x, item) *
+                        (self.y**RhsPowerListOfyInD[i]) *
+                        sp.sympify(RhsCoEfficientListOfD[i]))
+    for i, item in enumerate(RhsPowerListOfY):
+      if isinstance(item, float) and item != int(item):
+        RhsEquation += (self.y**item) * sp.sympify(RhsCoEfficientListOfY[i])
+      elif isinstance(item, float) and item == int(item):
+        RhsEquation += (self.y**int(item)) * sp.sympify(
+            RhsCoEfficientListOfY[i])
+      else:
+        RhsEquation += self.y * sp.sympify(RhsCoEfficientListOfY[i])
+    equation = sp.Eq(LhsEquation, RhsEquation)
+    return equation
 
+  def getHomogeneity(self):
+    return self.isHomogenous
 
-@app.route("/cropRecomCustom", methods=["POST"])
-def handle_data_custom():
+  def getOrder(self):
+    return self.order
+
+  def getEnteredOde(self):
+    return self.odeEquation
+
+  def isGeneralSolution(self):
     try:
-        data = request.json
-
-        inputs = [
-            data["zone"],
-            data["district"],
-            float(data["rainfall"]),
-            float(data["temperature"]),
-            float(data["humidity"]),
-            float(data["sunshine"]),
-            float(data["windDirection"]),
-            float(data["windVelocity"]),
-        ]
-        manual_input = True
-
-        return ai(inputs, manual_input)
+      self.odeSolution = sp.dsolve(self.odeEquation)
+      return 1
     except:
-        return "An Unexpected error occured.", 200
+      return 0
 
+  def getGeneralSolution(self):
+    return self.odeSolution
 
-@app.route("/timeRecomAI", methods=["POST"])
-def handle_data_time():
+  def getOdeConditions(self):
+    return self.conditions
+
+  def getParticularSolution(self):
+    for i in range(0, int(len(self.conditionList))):
+      for j in range(0, int(len(self.conditionList[i]) / 2)):
+        x = self.conditionList[i][2 * j]
+        y = self.conditionList[i][2 * j + 1]
+        if i:
+          self.conditions[self.y.diff(self.x, i).subs(self.x, x)] = y
+        else:
+          self.conditions[self.y.subs(self.x, x)] = y
     try:
-        data = request.json
-
-        input_list = [data["zone"], data["crop"]]
-        months = [
-            "January",
-            "February",
-            "March",
-            "April",
-            "May",
-            "June",
-            "July",
-            "August",
-            "September",
-            "October",
-            "November",
-            "December",
-        ]
-        pre, bangla_month, bangla_week, english_month, eng_week = model2(
-            ["Agricultural zone", "label count"], ["month(chara)"], input_list
-        )
-
-        string = f"week {eng_week} of {months[english_month]}<br/>week {bangla_week} of {bangla_month}"
-
-        return string
+      particularSolution = sp.dsolve(self.odeEquation, ics=self.conditions)
     except:
-        return "An Unexpected error occured.", 200
+      return 0
+    return particularSolution
 
+
+@app.route("/odeSolve", methods=["POST"])
+def mainFun():
+  try:
+    data = request.json
+    dataEquation = data.get("equation", "")
+    conditionList = data.get("inCon", [])
+
+    print("\n", conditionList, "\n")
+    print("\n" + dataEquation + "\n")
+
+    odeSolver = ODE(dataEquation, conditionList)
+    enteredEq = 0
+    generalEq = 0
+    particularEq = 0
+
+    flag = "Y" if len(odeSolver.getConditionList()) != 0 else "n"
+
+    if flag == "Y":
+      particularSolution = odeSolver.getParticularSolution()
+      try:
+        if particularSolution:
+          print("\nCan't Solve, enter conditions carefully.\n")
+          return ["Can't Solve, enter conditions carefully."], 200
+      except:
+        particularEq = str(sp.latex(particularSolution))
+        print("\n" + sp.pretty(particularSolution, use_unicode=True) + "\n")
+        return [particularEq], 200
+
+    if odeSolver.isEquationFormed():
+      enteredEq = odeSolver.getEnteredOde()
+      print("\n" + sp.pretty(enteredEq, use_unicode=True) + "\n")
+      enteredEq = str(sp.latex(enteredEq))
+    else:
+      string = odeSolver.getError()
+      return [string], 200
+
+    if odeSolver.isGeneralSolution():
+      generalSolution = odeSolver.getGeneralSolution()
+      print("\n" + sp.pretty(generalSolution, use_unicode=True) + "\n")
+      generalEq = str(sp.latex(generalSolution))
+    else:
+      print("\nCan't Solve.\n")
+      return ["Can't Solve."], 200
+
+    if odeSolver.getHomogeneity():
+      print(f"\nIt's a homogenous equation. order {odeSolver.getOrder()}\n")
+      return [
+          enteredEq,
+          generalEq,
+          f"\nIt's a homogenous equation. order {odeSolver.getOrder()}",
+          dataEquation,
+      ]
+    else:
+      print(
+          f"\nIt's not a homogenous equation. order {odeSolver.getOrder()}\n")
+      return [
+          enteredEq,
+          generalEq,
+          f"\nIt's not a homogenous equation. order {odeSolver.getOrder()}",
+          dataEquation,
+      ]
+  except:
+    print("\nAn Unexpected error occured.\n")
+    return ["An Unexpected error occured."], 200
 
 @app.route("/")
-def handle_data():
-    return "Hello"
+def test():
+  return "Sadman Sakib"
