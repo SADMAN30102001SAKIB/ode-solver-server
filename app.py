@@ -529,6 +529,15 @@ def mainFun():
     print("\nAn Unexpected error occured.\n")
     return ["An Unexpected error occured."], 200
 
+
+@app.route("/")
+def get_data():
+    if latest_response is not None:
+        return jsonify({"message": "poking omrElite..."}), 200
+    else:
+        return jsonify({"message": "No data available"}), 404
+
+
 #random code to keep a server awake
 def fetch_data():
     global latest_response
@@ -536,20 +545,11 @@ def fetch_data():
         try:
             response = requests.get("https://omrevalserver.onrender.com/")
             latest_response = response
-            print(latest_response)
+            print("poked omrElite!")
         except Exception as e:
             print(f"Error fetching data: {e}")
         time.sleep(5)
 
-
 fetch_thread = threading.Thread(target=fetch_data)
 fetch_thread.daemon = True
 fetch_thread.start()
-
-
-@app.route("/")
-def get_data():
-    if latest_response is not None:
-        return jsonify({"message": "omrElite"}), 200
-    else:
-        return jsonify({"message": "No data available"}), 404
