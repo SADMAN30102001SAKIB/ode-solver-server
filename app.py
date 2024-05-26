@@ -1,11 +1,16 @@
-from flask import Flask, request
+from flask import Flask, request, jsonify
 from flask_cors import CORS
 import sympy as sp
 import re
 import sys
+import threading
+import time
+import requests
 
 app = Flask(__name__)
 CORS(app)
+
+latest_response = None
 
 class ODE:
   def __init__(self, odeEquation, conditionList):
@@ -524,6 +529,22 @@ def mainFun():
     print("\nAn Unexpected error occured.\n")
     return ["An Unexpected error occured."], 200
 
+
+def fetch_data():
+    global latest_response
+    while True:
+        try:
+            response = requests.get("https://omrevalserver.onrender.com/")
+            latest_response = response
+            print(latest_response)
+        except Exception as e:
+            print(f"Error fetching data: {e}")
+        time.sleep(1)
+
+
 @app.route("/")
-def test():
-  return "ODE Solver"
+def get_data():
+    if latest_response is not None:
+        return jsonify({"message": "omrElite"}), 200
+    else:
+        return jsonify({"message": "No data available"}), 404
