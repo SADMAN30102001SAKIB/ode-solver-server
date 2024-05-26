@@ -542,7 +542,7 @@ def fetch_data():
         time.sleep(10)
 
 
-@app.route("/", methods=["GET"])
+@app.route("/")
 def get_data():
     if latest_response is not None:
         return jsonify({"message": "poking omrElite..."}), 200
@@ -550,6 +550,6 @@ def get_data():
         return jsonify({"message": "No data available"}), 404
 
 
-fetch_thread = threading.Thread(target=fetch_data)
-fetch_thread.daemon = True
-fetch_thread.start()
+# fetch_thread = threading.Thread(target=fetch_data)
+# fetch_thread.daemon = True
+# fetch_thread.start()
